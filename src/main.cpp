@@ -20,6 +20,10 @@ typedef struct game_object
   // both of the above might turn into variables later on!
 } game_object;
 
+// <input>
+bool PlayerInput() { return GetTouchPointCount() || IsKeyDown(KEY_SPACE); }
+// </input>
+
 int main(void)
 {
   const int screenWidth  = 600;
@@ -95,7 +99,7 @@ int main(void)
 
     if (!gameOver)
     {
-      if (IsKeyDown(KEY_SPACE) && isGrounded)
+      if (PlayerInput() && isGrounded)
       {
         isGrounded = false;
         playerDy   = -jumpHeight;
@@ -122,7 +126,7 @@ int main(void)
         isGrounded = true;
       }
     }
-    else if (IsKeyDown(KEY_R))
+    else if (PlayerInput())
     {
       gameOver = false;
 
