@@ -3,12 +3,13 @@
 #include <filesystem>
 #include <format>
 #include <random>
+#include <spritesheet-renderer.h>
 #include <vector>
 
-const int FLOOR_Y       = 300; // how many pixels down floor should span for
-const int PLAYER_SIZE   = 50;  // w + h of player hitbox
-const int OBSTACLE_SIZE = PLAYER_SIZE;
-const int COIN_SIZE     = PLAYER_SIZE;
+const int FLOOR_Y            = 300; // how many pixels down floor should span for
+const int PLAYER_SPRITE_SIZE = 80;  // w + h of player hitbox
+const int OBSTACLE_SIZE      = 50;
+const int COIN_SIZE          = 50;
 
 enum GameState : uint8_t
 {
@@ -65,25 +66,39 @@ int main(void)
 
   GameState gameState = TITLE;
 
-  // <player logic vars>
+  // === PLAYER ===============================================================================
 
   int   playerX    = 40;
-  int   playerY    = FLOOR_Y - PLAYER_SIZE;
+  int   playerY    = FLOOR_Y - PLAYER_SPRITE_SIZE;
   float playerDy   = 0;
   float jumpHeight = 13;
   float gravity    = -0.75;
   bool  isGrounded = true;
 
-  // <player logic vars/>
+  Texture2D spr_niko_run =
+      LoadTexture(std::filesystem::path("assets/niko-run.png").c_str());
+  Texture2D spr_niko_jump =
+      LoadTexture(std::filesystem::path("assets/niko-jump.png").c_str());
 
-  // <dt>
+  // Organize them into individual spritesheets
+  std::map<std::string, SPRITESHEET const &> const &niko_spritesheets{
+      {"run", SPRITESHEET{spr_niko_run, 8}}, {"jump", SPRITESHEET{spr_niko_jump, 1}}};
+
+  // Create sprite renderer out of individual spritesheets
+  std::shared_ptr<SPRITESHEET_RENDERER> niko_spritesheet_renderer(
+      new SPRITESHEET_RENDERER(niko_spritesheets));
+
+  // Apply some settings to renderer
+  niko_spritesheet_renderer->setFPS(8);
+  niko_spritesheet_renderer->enableOutline(false);
+  niko_spritesheet_renderer->setSpritesheet("run");
+
+  // === DELTATIME =======================================================================
 
   float dt            = 0; // in SECONDS
   auto  lastCycleTime = std::chrono::high_resolution_clock::now();
 
-  // </dt>
-
-  // <obstacle logic vars>
+  // === OBSTACLES =======================================================================
 
   std::vector<game_object> obstacles;
 
@@ -97,9 +112,7 @@ int main(void)
   float chance_obstacle_will_fly =
       0.5; // will this enemy fly? flying enemies make the player need to stay rather than jump
 
-  // </obstacle logic vars>
-
-  // <coin vars>
+  // === COINS ===========================================================================
 
   std::vector<game_object> coins;
 
@@ -110,12 +123,13 @@ int main(void)
   int coin_count      = 0;
   int coin_high_score = 0;
 
-  // </coin vars>
-
+  // update player hitbox
+  Rectangle player_hitbox{static_cast<float>(playerX),
+                          static_cast<float>(playerY),
+                          PLAYER_SPRITE_SIZE - 30,
+                          PLAYER_SPRITE_SIZE - 20};
   while (!WindowShouldClose()) // Detect window close button or ESC key
   {
-    // <player logic>
-
     switch (gameState)
     {
     case TITLE:
@@ -125,7 +139,7 @@ int main(void)
 
       // restore player pos; vel
       playerDy   = 0;
-      playerY    = FLOOR_Y - PLAYER_SIZE;
+      playerY    = FLOOR_Y - player_hitbox.height;
       isGrounded = true;
 
       // clear all coins, enemies
@@ -164,10 +178,10 @@ int main(void)
       // if the player touches the ground again
       // (lowest edge y is below floor)
       // reset player's velocity and put them on the floor
-      if (playerY + PLAYER_SIZE >= FLOOR_Y)
+      if (playerY + player_hitbox.height >= FLOOR_Y)
       {
         playerDy = 0;
-        playerY  = FLOOR_Y - PLAYER_SIZE;
+        playerY  = FLOOR_Y - player_hitbox.height;
 
         if (!isGrounded)
         {
@@ -193,15 +207,17 @@ int main(void)
     }
     }
 
-    // update player hitbox according to pos
-    Rectangle player_hitbox{static_cast<float>(playerX),
-                            static_cast<float>(playerY),
-                            PLAYER_SIZE,
-                            PLAYER_SIZE};
-    // <player logic/>
+    // update player draw rect
+    Rectangle player_draw_rect{static_cast<float>(playerX - 12),
+                               static_cast<float>(playerY - 6),
+                               PLAYER_SPRITE_SIZE,
+                               PLAYER_SPRITE_SIZE};
 
-    // <dt>
+    // update player hitbox
+    player_hitbox.x = playerX;
+    player_hitbox.y = playerY;
 
+    // update deltatime
     auto currentTime = std::chrono::high_resolution_clock::now();
     dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime -
                                                                     lastCycleTime)
@@ -209,9 +225,7 @@ int main(void)
 
     lastCycleTime = currentTime; // then becomes now
 
-    // </dt>
-
-    // <obstacle logic>
+    // OBSTACLE LOGIC
 
     if (gameState == PLAYING)
     {
@@ -235,8 +249,9 @@ int main(void)
 
           if (obstacle_will_fly)
           {
-            obstacles.push_back(game_object{screenWidth + OBSTACLE_SIZE,
-                                            FLOOR_Y - OBSTACLE_SIZE - PLAYER_SIZE * 2});
+            obstacles.push_back(
+                game_object{screenWidth + OBSTACLE_SIZE,
+                            FLOOR_Y - OBSTACLE_SIZE - PLAYER_SPRITE_SIZE * 2});
           }
           else
           {
@@ -295,7 +310,7 @@ int main(void)
           coins.push_back(game_object{
               screenWidth + COIN_SIZE,
               FLOOR_Y - COIN_SIZE -
-                  PLAYER_SIZE}); // this SPECIFIC setup will put coins right between flying enemies and player
+                  PLAYER_SPRITE_SIZE}); // this SPECIFIC setup will put coins right between flying enemies and player
         }
 
         coin_spawn_timer = 0;
@@ -356,7 +371,13 @@ int main(void)
     }
 
     // draw player
-    DrawRectangle(playerX, playerY, PLAYER_SIZE, PLAYER_SIZE, ORANGE);
+    // DrawRectangle(playerX, playerY, PLAYER_SPRITE_SIZE, PLAYER_SPRITE_SIZE, ORANGE);
+    DrawRectangle(player_hitbox.x,
+                  player_hitbox.y,
+                  player_hitbox.width,
+                  player_hitbox.height,
+                  PURPLE);
+    niko_spritesheet_renderer->renderToDest(player_draw_rect);
 
     // draw gui
     std::string coin_gui =
@@ -365,10 +386,12 @@ int main(void)
             : std::format("SCORE {}", coin_count);
 
     std::string debug =
-        std::format("STATE: {} BLOCKED: {} PRESSING: {}",
+        std::format("STATE: {} BLOCKED: {} PRESSING: {} M: {}, {}",
                     static_cast<int>(gameState),
                     static_cast<int>(blocked),
-                    static_cast<int>(GetTouchPointCount() > 0 || IsKeyDown(KEY_SPACE)));
+                    static_cast<int>(GetTouchPointCount() > 0 || IsKeyDown(KEY_SPACE)),
+                    GetMouseX(),
+                    GetMouseY());
 
     DrawText(coin_gui.c_str(), 0, 0, 24, WHITE);
     DrawText(debug.c_str(), 0, 48, 24, WHITE);
