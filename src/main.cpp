@@ -10,6 +10,13 @@ const int PLAYER_SIZE   = 50;  // w + h of player hitbox
 const int OBSTACLE_SIZE = PLAYER_SIZE;
 const int COIN_SIZE     = PLAYER_SIZE;
 
+enum GameState : uint8_t
+{
+  TITLE     = 0,
+  PLAYING   = 1,
+  GAME_OVER = 2
+};
+
 typedef struct game_object
 {
   int xpos;
@@ -43,9 +50,10 @@ int main(void)
                                         .time_since_epoch()
                                         .count()); // this is seeded with the current time
 
-  float gameSpeed     = 7.5; // how fast onscreen stuff moves on x axis
-  float currGameSpeed = gameSpeed;
-  bool  gameOver      = false;
+  float baseGameSpeed = 7.5f;
+  float currGameSpeed = baseGameSpeed;
+
+  GameState gameState = TITLE;
 
   // <player logic vars>
 
@@ -59,6 +67,7 @@ int main(void)
   // <player logic vars/>
 
   // <dt>
+
   float dt            = 0; // in SECONDS
   auto  lastCycleTime = std::chrono::high_resolution_clock::now();
 
@@ -97,7 +106,35 @@ int main(void)
   {
     // <player logic>
 
-    if (!gameOver)
+    switch (gameState)
+    {
+    case TITLE:
+    {
+      // restore game speed
+      currGameSpeed = baseGameSpeed;
+
+      // restore player pos; vel
+      playerDy   = 0;
+      playerY    = FLOOR_Y - PLAYER_SIZE;
+      isGrounded = true;
+
+      // clear all coins, enemies
+      coins.clear();
+      obstacles.clear();
+
+      // reset coin count
+      coin_count = 0;
+
+      // disable score & spawns until we are playing
+
+      if (PlayerInput())
+      {
+        gameState = PLAYING;
+      }
+
+      break;
+    }
+    case PLAYING:
     {
       if (PlayerInput() && isGrounded)
       {
@@ -107,7 +144,7 @@ int main(void)
         PlaySound(jump);
       }
 
-      playerDy -= gravity; // apply acceleration; experiment with this
+      playerDy -= gravity; // apply acceleration
       playerY += playerDy; // apply vel
 
       // if the player touches the ground again
@@ -125,102 +162,102 @@ int main(void)
 
         isGrounded = true;
       }
+
+      break;
     }
-    else if (PlayerInput())
+    case GAME_OVER:
     {
-      gameOver = false;
+      // freeze the game until input is received
+      currGameSpeed = 0.0f;
 
-      // restore game speed
-      currGameSpeed = gameSpeed;
+      if (PlayerInput())
+      {
+        gameState = TITLE;
+      }
 
-      // restore player pos; vel
-      playerDy   = 0;
-      playerY    = FLOOR_Y - PLAYER_SIZE;
-      isGrounded = true;
-
-      // clear all coins, enemies
-      coins.clear();
-      obstacles.clear();
-
-      // reset coin count
-      coin_count = 0;
+      break;
+    }
     }
 
-    // get hitbox to update coins, enemies
+    // update player hitbox according to pos
     Rectangle player_hitbox{static_cast<float>(playerX),
                             static_cast<float>(playerY),
                             PLAYER_SIZE,
                             PLAYER_SIZE};
-
     // <player logic/>
 
     // <dt>
+
     auto currentTime = std::chrono::high_resolution_clock::now();
     dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime -
                                                                     lastCycleTime)
              .count();
 
-    lastCycleTime = currentTime; // then becomes now=
+    lastCycleTime = currentTime; // then becomes now
+
     // </dt>
 
     // <obstacle logic>
 
-    // move all obstacles towards player
-    for (auto &obstacle : obstacles)
+    if (gameState == PLAYING)
     {
-      obstacle.xpos -= currGameSpeed;
-    }
-
-    // spawn more obstacles
-    obstacle_spawn_timer += dt;
-    if (obstacle_spawn_timer >= obstacle_spawn_opportunity_interval)
-    {
-      bool will_spawn_obstacle = std::bernoulli_distribution{obstacle_spawn_chance}(
-          random_num_generator); // TODO: what is this syntax? constructor with braces???
-
-      if (will_spawn_obstacle)
+      // move all obstacles towards player
+      for (auto &obstacle : obstacles)
       {
-        bool obstacle_will_fly =
-            std::bernoulli_distribution{chance_obstacle_will_fly}(random_num_generator);
-
-        if (obstacle_will_fly)
-        {
-          obstacles.push_back(game_object{screenWidth + OBSTACLE_SIZE,
-                                          FLOOR_Y - OBSTACLE_SIZE - PLAYER_SIZE * 2});
-        }
-        else
-        {
-          // obstacle is at ground
-          obstacles.push_back(
-              game_object{screenWidth + OBSTACLE_SIZE, FLOOR_Y - OBSTACLE_SIZE});
-        }
+        obstacle.xpos -= currGameSpeed;
       }
 
-      obstacle_spawn_timer = 0;
-    }
-
-    // check if player touched obstacle
-    // game over if so
-    for (const auto &obstacle : obstacles)
-    {
-      Rectangle obstacle_hitbox{static_cast<float>(obstacle.xpos),
-                                static_cast<float>(obstacle.ypos),
-                                COIN_SIZE,
-                                COIN_SIZE};
-
-      if (CheckCollisionRecs(player_hitbox, obstacle_hitbox) && !gameOver)
+      // spawn more obstacles
+      obstacle_spawn_timer += dt;
+      if (obstacle_spawn_timer >= obstacle_spawn_opportunity_interval)
       {
-        gameOver = true;
+        bool will_spawn_obstacle = std::bernoulli_distribution{obstacle_spawn_chance}(
+            random_num_generator); // TODO: what is this syntax? constructor with braces???
 
-        // play death sound
-        PlaySound(explosion);
+        if (will_spawn_obstacle)
+        {
+          bool obstacle_will_fly =
+              std::bernoulli_distribution{chance_obstacle_will_fly}(random_num_generator);
 
-        // freeze game
-        currGameSpeed = 0;
-        playerDy      = 0;
+          if (obstacle_will_fly)
+          {
+            obstacles.push_back(game_object{screenWidth + OBSTACLE_SIZE,
+                                            FLOOR_Y - OBSTACLE_SIZE - PLAYER_SIZE * 2});
+          }
+          else
+          {
+            // obstacle is at ground
+            obstacles.push_back(
+                game_object{screenWidth + OBSTACLE_SIZE, FLOOR_Y - OBSTACLE_SIZE});
+          }
+        }
 
-        // set coin high score
-        coin_high_score = coin_count;
+        obstacle_spawn_timer = 0;
+      }
+
+      // check if player touched obstacle
+      // game over if so
+      for (const auto &obstacle : obstacles)
+      {
+        Rectangle obstacle_hitbox{static_cast<float>(obstacle.xpos),
+                                  static_cast<float>(obstacle.ypos),
+                                  COIN_SIZE,
+                                  COIN_SIZE};
+
+        if (CheckCollisionRecs(player_hitbox, obstacle_hitbox) && gameState == PLAYING)
+        {
+          gameState = GAME_OVER;
+
+          // play death sound
+          PlaySound(explosion);
+
+          // freeze game
+          currGameSpeed = 0;
+          playerDy      = 0;
+
+          // set coin high score
+          coin_high_score = coin_count;
+        }
       }
     }
 
@@ -228,48 +265,51 @@ int main(void)
 
     // <coin logic>
 
-    for (auto &coin : coins)
-      coin.xpos -= currGameSpeed;
-
-    coin_spawn_timer += dt;
-    if (coin_spawn_timer >= coin_spawn_opportunity_interval)
+    if (gameState == PLAYING)
     {
-      bool will_spawn_coin = std::bernoulli_distribution{coin_spawn_chance}(
-          random_num_generator); // TODO: what is this syntax? constructor with braces???
+      for (auto &coin : coins)
+        coin.xpos -= currGameSpeed;
 
-      if (will_spawn_coin)
+      coin_spawn_timer += dt;
+      if (coin_spawn_timer >= coin_spawn_opportunity_interval)
       {
-        coins.push_back(game_object{
-            screenWidth + COIN_SIZE,
-            FLOOR_Y - COIN_SIZE -
-                PLAYER_SIZE}); // this SPECIFIC setup will put coins right between flying enemies and player
+        bool will_spawn_coin = std::bernoulli_distribution{coin_spawn_chance}(
+            random_num_generator); // TODO: what is this syntax? constructor with braces???
+
+        if (will_spawn_coin)
+        {
+          coins.push_back(game_object{
+              screenWidth + COIN_SIZE,
+              FLOOR_Y - COIN_SIZE -
+                  PLAYER_SIZE}); // this SPECIFIC setup will put coins right between flying enemies and player
+        }
+
+        coin_spawn_timer = 0;
       }
 
-      coin_spawn_timer = 0;
-    }
+      // check if player collected (touched) coin
 
-    // check if player collected (touched) coin
+      // NOTE:
+      // since we are removing from array as we go, we need to update the iterator each time we perform a remval
 
-    // NOTE:
-    // since we are removing from array as we go, we need to update the iterator each time we perform a remval
-
-    for (auto iter = coins.begin();
-         iter != coins.end();) // continue iterating until the iterator becomes null
-    {
-      Rectangle coin_hitbox{static_cast<float>(iter->xpos),
-                            static_cast<float>(iter->ypos),
-                            COIN_SIZE,
-                            COIN_SIZE};
-
-      if (CheckCollisionRecs(player_hitbox, coin_hitbox))
+      for (auto iter = coins.begin();
+           iter != coins.end();) // continue iterating until the iterator becomes null
       {
-        iter = coins.erase(iter); // iterator updated HERE
-        PlaySound(pickupCoin);
-        coin_count++;
-      }
-      else
-      {
-        ++iter; // move on to next item if no removals were performed
+        Rectangle coin_hitbox{static_cast<float>(iter->xpos),
+                              static_cast<float>(iter->ypos),
+                              COIN_SIZE,
+                              COIN_SIZE};
+
+        if (CheckCollisionRecs(player_hitbox, coin_hitbox))
+        {
+          iter = coins.erase(iter); // iterator updated HERE
+          PlaySound(pickupCoin);
+          coin_count++;
+        }
+        else
+        {
+          ++iter; // move on to next item if no removals were performed
+        }
       }
     }
 
@@ -301,7 +341,10 @@ int main(void)
             ? std::format("SCORE {} ( HIGH SCORE {} )", coin_count, coin_high_score)
             : std::format("SCORE {}", coin_count);
 
+    std::string debug = std::format("STATE: {}", static_cast<int>(gameState));
+
     DrawText(coin_gui.c_str(), 0, 0, 24, WHITE);
+    DrawText(debug.c_str(), 0, 48, 24, WHITE);
 
     ClearBackground(BLUE);
 
