@@ -66,6 +66,17 @@ int main(void)
 
   GameState gameState = TITLE;
 
+  Texture2D floor_texture =
+      LoadTexture(std::filesystem::path("../assets/floor.png").c_str());
+
+  // do 2 cycling floors thing
+
+  const float FLOOR_SCALE = static_cast<float>(screenWidth) / floor_texture.width;
+  const float FLOOR_WIDTH = floor_texture.width * FLOOR_SCALE;
+
+  float floor_a_x = 0;
+  float floor_b_x = FLOOR_WIDTH;
+
   // === PLAYER ===============================================================================
 
   int   playerX    = 40;
@@ -128,6 +139,12 @@ int main(void)
                           static_cast<float>(playerY),
                           PLAYER_SPRITE_SIZE - 30,
                           PLAYER_SPRITE_SIZE - 20};
+
+  Texture2D coin_sprite =
+      LoadTexture(std::filesystem::path("assets/cigs-red.png").c_str());
+
+  // === MAIN LOOP =======================================================================
+
   while (!WindowShouldClose()) // Detect window close button or ESC key
   {
     switch (gameState)
@@ -353,30 +370,71 @@ int main(void)
 
     // WARNING: BAD INPUT LOGIC
 
+    if (floor_a_x < -screenWidth)
+    {
+      floor_a_x = screenWidth - (abs(floor_a_x) - screenWidth);
+    }
+
+    if (floor_b_x < -screenWidth)
+    {
+
+      floor_b_x = screenWidth - (abs(floor_b_x) - screenWidth);
+    }
+
+    floor_a_x -= currGameSpeed;
+    floor_b_x -= currGameSpeed;
+
+    // === DRAWING =======================================================================
+
     BeginDrawing();
 
-    // draw floor
-    DrawRectangle(0, FLOOR_Y, screenWidth, screenHeight - FLOOR_Y, GREEN);
+    // draw floors
+    // DrawRectangle(0, FLOOR_Y, screenWidth, screenHeight - FLOOR_Y, GREEN);
+
+    DrawTextureEx(floor_texture,
+                  {static_cast<float>(floor_a_x), static_cast<float>(FLOOR_Y)},
+                  0,
+                  FLOOR_SCALE,
+                  WHITE);
+    DrawTextureEx(floor_texture,
+                  {static_cast<float>(floor_b_x), static_cast<float>(FLOOR_Y)},
+                  0,
+                  FLOOR_SCALE,
+                  WHITE);
 
     // draw all obstacles
     for (auto &obstacle : obstacles)
     {
       DrawRectangle(obstacle.xpos, obstacle.ypos, OBSTACLE_SIZE, OBSTACLE_SIZE, PURPLE);
+      /*
+      DrawTextureEx(
+          obstacle_sprite,
+          {static_cast<float>(obstacle.xpos), static_cast<float>(obstacle.ypos)},
+          0,
+          1,
+          WHITE);
+        */
     }
 
     // draw all coins
     for (auto &coin : coins)
     {
-      DrawRectangle(coin.xpos, coin.ypos, OBSTACLE_SIZE, OBSTACLE_SIZE, YELLOW);
+      DrawTextureEx(coin_sprite,
+                    {static_cast<float>(coin.xpos), static_cast<float>(coin.ypos)},
+                    0,
+                    1,
+                    WHITE);
     }
 
     // draw player
     // DrawRectangle(playerX, playerY, PLAYER_SPRITE_SIZE, PLAYER_SPRITE_SIZE, ORANGE);
+    /*
     DrawRectangle(player_hitbox.x,
                   player_hitbox.y,
                   player_hitbox.width,
                   player_hitbox.height,
                   PURPLE);
+    */
     niko_spritesheet_renderer->renderToDest(player_draw_rect);
 
     // draw gui
@@ -393,10 +451,10 @@ int main(void)
                     GetMouseX(),
                     GetMouseY());
 
-    DrawText(coin_gui.c_str(), 0, 0, 24, WHITE);
-    DrawText(debug.c_str(), 0, 48, 24, WHITE);
+    // DrawText(coin_gui.c_str(), 0, 0, 24, WHITE);
+    // DrawText(debug.c_str(), 0, 48, 24, WHITE);
 
-    ClearBackground(BLUE);
+    ClearBackground(ORANGE);
 
     EndDrawing();
   }
