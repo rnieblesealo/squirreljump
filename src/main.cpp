@@ -28,7 +28,17 @@ typedef struct game_object
 } game_object;
 
 // <input>
-bool PlayerInput() { return GetTouchPointCount() || IsKeyDown(KEY_SPACE); }
+bool blocked = false;
+bool PlayerInput()
+{
+  if (!blocked && (GetTouchPointCount() > 0 || IsKeyDown(KEY_SPACE)))
+  {
+    blocked = true;
+    return true;
+  }
+
+  return false;
+}
 // </input>
 
 int main(void)
@@ -130,9 +140,13 @@ int main(void)
       if (PlayerInput())
       {
         gameState = PLAYING;
-      }
 
-      break;
+        // perform a jump
+        isGrounded = false;
+        playerDy   = -jumpHeight;
+
+        PlaySound(jump);
+      }
     }
     case PLAYING:
     {
@@ -315,6 +329,15 @@ int main(void)
 
     // </coin logic>
 
+    // WARNING: BAD INPUT LOGIC
+
+    if (!(GetTouchPointCount() > 0 || IsKeyDown(KEY_SPACE)))
+    {
+      blocked = false;
+    }
+
+    // WARNING: BAD INPUT LOGIC
+
     BeginDrawing();
 
     // draw floor
@@ -341,7 +364,11 @@ int main(void)
             ? std::format("SCORE {} ( HIGH SCORE {} )", coin_count, coin_high_score)
             : std::format("SCORE {}", coin_count);
 
-    std::string debug = std::format("STATE: {}", static_cast<int>(gameState));
+    std::string debug =
+        std::format("STATE: {} BLOCKED: {} PRESSING: {}",
+                    static_cast<int>(gameState),
+                    static_cast<int>(blocked),
+                    static_cast<int>(GetTouchPointCount() > 0 || IsKeyDown(KEY_SPACE)));
 
     DrawText(coin_gui.c_str(), 0, 0, 24, WHITE);
     DrawText(debug.c_str(), 0, 48, 24, WHITE);
