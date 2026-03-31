@@ -1,7 +1,6 @@
 #include "raylib.h"
 #include <chrono>
 #include <filesystem>
-#include <format>
 #include <random>
 #include <spritesheet-renderer.h>
 #include <vector>
@@ -9,7 +8,10 @@
 const int OBSTACLE_SIZE = 50;
 const int COIN_SIZE     = 50;
 
-const int FLOOR_Y = 300; // position of floor
+const int PLAYER_JUMP_HEIGHT = 13;
+const int PLAYER_SPRITE_SIZE = 75; // how big we want the sprite to be in the window
+                                   //
+const int FLOOR_Y = 300;           // position of floor
 
 const float GRAVITY         = -0.75;
 const float BASE_GAME_SPEED = 7.5f;
@@ -34,31 +36,45 @@ typedef struct game_object
   // both of the above might turn into variables later on!
 } game_object;
 
-typedef struct player
+typedef struct coin
 {
 
-  const int JUMP_HEIGHT = 13;
-  const int SPRITE_SIZE = 80; // how big we want the sprite to be in the window
+} coin;
 
+typedef struct obstacle
+{
+  int xpos;
+  int ypos;
+
+  bool flying = false;
+} obstacle;
+
+typedef struct player
+{
   int                                   xpos        = 40;
-  int                                   ypos        = FLOOR_Y - SPRITE_SIZE;
+  int                                   ypos        = FLOOR_Y - PLAYER_SPRITE_SIZE;
   float                                 dy          = 0;
   bool                                  is_grounded = true;
   std::shared_ptr<SPRITESHEET_RENDERER> sprite      = nullptr;
 
   // these two are completely eyeballed to taste
 
-  Rectangle hitbox = {
-      (float)xpos, (float)ypos, (float)SPRITE_SIZE - 30, (float)SPRITE_SIZE - 20};
+  Rectangle hitbox = {(float)xpos,
+                      (float)ypos,
+                      (float)PLAYER_SPRITE_SIZE - 30,
+                      (float)PLAYER_SPRITE_SIZE - 20};
 
-  Rectangle draw_rect = {
-      (float)xpos - 12, (float)ypos - 6, (float)SPRITE_SIZE, (float)SPRITE_SIZE};
+  Rectangle draw_rect = {(float)xpos - 12,
+                         (float)ypos - 6,
+                         (float)PLAYER_SPRITE_SIZE,
+                         (float)PLAYER_SPRITE_SIZE};
 
 } player;
 
 typedef struct input_state
 {
-  bool held_down = false;
+  bool held_down            = false;
+  bool has_done_first_input = false;
 } input_state;
 
 input_state inputs;
@@ -74,6 +90,9 @@ bool UserInput()
   if (!inputs.held_down && getting_input)
   {
     inputs.held_down = true;
+    inputs.has_done_first_input =
+        true; // this is only set once and is used to define game state
+
     return true;
   }
   else
@@ -134,7 +153,7 @@ int main(void)
 
   // Apply some settings to renderer
   niko_spritesheet_renderer->setFPS(8);
-  niko_spritesheet_renderer->enableOutline(false);
+  niko_spritesheet_renderer->enableOutline(true);
   niko_spritesheet_renderer->setSpritesheet("run");
 
   player.sprite = niko_spritesheet_renderer;
@@ -146,7 +165,7 @@ int main(void)
 
   // === OBSTACLES =======================================================================
 
-  std::vector<game_object> obstacles;
+  std::vector<obstacle> obstacles;
 
   // every n seconds,
   //  there is an x% chance that an obstacle will spawn!
@@ -157,6 +176,15 @@ int main(void)
   float obstacle_spawn_chance = 0.75f; // 0-1
   float chance_obstacle_will_fly =
       0.5; // will this enemy fly? flying enemies make the player need to stay rather than jump
+
+  Texture2D cactus_texture =
+      LoadTexture(std::filesystem::path("assets/cactus.png").c_str());
+
+  Texture2D eagle_texture =
+      LoadTexture(std::filesystem::path("assets/eagle.png").c_str());
+
+  const float GROUND_OBSTACLE_SCALE = (float)OBSTACLE_SIZE / cactus_texture.width;
+  const float SKY_OBSTACLE_SCALE    = (float)OBSTACLE_SIZE / eagle_texture.width;
 
   // === COINS ===========================================================================
 
@@ -203,7 +231,7 @@ int main(void)
 
         // perform a jump
         player.is_grounded = false;
-        player.dy          = -player.JUMP_HEIGHT;
+        player.dy          = -PLAYER_JUMP_HEIGHT;
 
         PlaySound(jump);
       }
@@ -215,7 +243,7 @@ int main(void)
       if (UserInput() && player.is_grounded)
       {
         player.is_grounded = false;
-        player.dy          = -player.JUMP_HEIGHT;
+        player.dy          = -PLAYER_JUMP_HEIGHT;
 
         PlaySound(jump);
       }
@@ -294,15 +322,17 @@ int main(void)
 
           if (obstacle_will_fly)
           {
-            obstacles.push_back(
-                game_object{SCREEN_WIDTH + OBSTACLE_SIZE,
-                            FLOOR_Y - OBSTACLE_SIZE - player.SPRITE_SIZE * 2});
+            int flying_offset = PLAYER_SPRITE_SIZE * 2;
+
+            obstacles.push_back(obstacle{SCREEN_WIDTH + OBSTACLE_SIZE,
+                                         FLOOR_Y - OBSTACLE_SIZE - flying_offset,
+                                         true});
           }
           else
           {
             // obstacle is at ground
             obstacles.push_back(
-                game_object{SCREEN_WIDTH + OBSTACLE_SIZE, FLOOR_Y - OBSTACLE_SIZE});
+                obstacle{SCREEN_WIDTH + OBSTACLE_SIZE, FLOOR_Y - OBSTACLE_SIZE, false});
           }
         }
 
@@ -355,8 +385,7 @@ int main(void)
           coins.push_back(game_object{
               SCREEN_WIDTH + COIN_SIZE,
               FLOOR_Y - COIN_SIZE -
-                  player
-                      .SPRITE_SIZE}); // this SPECIFIC setup will put coins right between flying enemies and player
+                  PLAYER_SPRITE_SIZE}); // this SPECIFIC setup will put coins right between flying enemies and player
         }
 
         coin_spawn_timer = 0;
@@ -418,31 +447,49 @@ int main(void)
     BeginDrawing();
 
     // draw floors
-    // DrawRectangle(0, FLOOR_Y, SCREEN_WIDTH, SCREEN_HEIGHT - FLOOR_Y, GREEN);
 
-    DrawTextureEx(floor_texture,
-                  {static_cast<float>(floor_a_x), static_cast<float>(FLOOR_Y)},
-                  0,
-                  FLOOR_SCALE,
-                  WHITE);
-    DrawTextureEx(floor_texture,
-                  {static_cast<float>(floor_b_x), static_cast<float>(FLOOR_Y)},
-                  0,
-                  FLOOR_SCALE,
-                  WHITE);
+    if (gameState == TITLE && !inputs.has_done_first_input)
+    {
+      DrawRectangle(0, FLOOR_Y, SCREEN_WIDTH, 2, RED);
+    }
+    else
+    {
+      DrawTextureEx(floor_texture,
+                    {static_cast<float>(floor_a_x), static_cast<float>(FLOOR_Y)},
+                    0,
+                    FLOOR_SCALE,
+                    WHITE);
+      DrawTextureEx(floor_texture,
+                    {static_cast<float>(floor_b_x), static_cast<float>(FLOOR_Y)},
+                    0,
+                    FLOOR_SCALE,
+                    WHITE);
+    }
 
     // draw all obstacles
     for (auto &obstacle : obstacles)
     {
-      DrawRectangle(obstacle.xpos, obstacle.ypos, OBSTACLE_SIZE, OBSTACLE_SIZE, PURPLE);
-      /*
-      DrawTextureEx(
-          obstacle_sprite,
-          {static_cast<float>(obstacle.xpos), static_cast<float>(obstacle.ypos)},
-          0,
-          1,
-          WHITE);
-        */
+      // change sprite depending on whether is flying or not
+
+      if (obstacle.flying)
+      {
+
+        DrawTextureEx(
+            eagle_texture,
+            {static_cast<float>(obstacle.xpos), static_cast<float>(obstacle.ypos)},
+            0,
+            GROUND_OBSTACLE_SCALE,
+            WHITE);
+      }
+      else
+      {
+        DrawTextureEx(
+            cactus_texture,
+            {static_cast<float>(obstacle.xpos), static_cast<float>(obstacle.ypos)},
+            0,
+            GROUND_OBSTACLE_SCALE,
+            WHITE);
+      }
     }
 
     // draw all coins
@@ -458,11 +505,6 @@ int main(void)
     // draw debug stuff
 
     /*
-    std::string coin_gui =
-        coin_high_score > 0
-            ? std::format("SCORE {} ( HIGH SCORE {} )", coin_count, coin_high_score)
-            : std::format("SCORE {}", coin_count);
-
     std::string debug =
         std::format("STATE: {}\nBLOCKED: {}\nPRESSING: {}\nM: {}, {}\nGRND: {} DY: {}",
                     static_cast<int>(gameState),
@@ -472,19 +514,66 @@ int main(void)
                     GetMouseY(),
                     player.is_grounded,
                     player.dy);
-
-    DrawText(coin_gui.c_str(), 0, 0, 24, WHITE);
-    DrawText(debug.c_str(), 0, 48, 24, WHITE);
-
-    DrawRectangleRec(player.draw_rect, WHITE);
-    DrawRectangleRec(player.hitbox, RED);
     */
+
+    if (gameState != TITLE)
+    {
+      std::string coin_gui =
+          coin_high_score > 0
+              ? std::format("score {} ( high score {} )", coin_count, coin_high_score)
+              : std::format("score {}", coin_count);
+
+      DrawText(coin_gui.c_str(), 0, 0, 22, WHITE);
+    }
+    // DrawText(debug.c_str(), 0, 48, 24, WHITE);
+
+    // DrawRectangleRec(player.draw_rect, WHITE);
+    // DrawRectangleRec(player.hitbox, RED);
 
     // draw player
 
     niko_spritesheet_renderer->renderToDest(player.draw_rect);
 
-    ClearBackground(BLACK);
+    float extra_y_offset = 28;
+
+    if (gameState == GAME_OVER)
+    {
+      DrawText("game over",
+               (float)SCREEN_WIDTH / 2 - (float)MeasureText("game over", 32) / 2,
+               (float)SCREEN_HEIGHT / 2 - (float)32 / 2,
+               32,
+               RED);
+    }
+
+    if (gameState == TITLE)
+    {
+      if (!inputs.has_done_first_input)
+      {
+
+        DrawText("404",
+                 (float)SCREEN_WIDTH / 2 - (float)MeasureText("404", 48) / 2,
+                 (float)SCREEN_HEIGHT / 2 - (float)48 / 2 - extra_y_offset,
+                 48,
+                 RED);
+
+        ClearBackground(BLACK);
+      }
+      else
+      {
+        DrawText("press any key/tap",
+                 (float)SCREEN_WIDTH / 2 -
+                     (float)MeasureText("press any key/tap", 22) / 2,
+                 (float)SCREEN_HEIGHT / 2 - (float)22 / 2 - extra_y_offset,
+                 22,
+                 WHITE);
+
+        ClearBackground({23, 115, 184, 255});
+      }
+    }
+    else
+    {
+      ClearBackground({23, 115, 184, 255});
+    }
 
     EndDrawing();
   }

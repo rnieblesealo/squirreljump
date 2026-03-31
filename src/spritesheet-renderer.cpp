@@ -69,7 +69,7 @@ void SPRITESHEET_RENDERER::renderOutline(Rectangle &dest)
    * We draw 4 black-tinted copies of the sprite offset by the same amount to top, bottom, left and right
    * This creates a poor man's stroke effect! :)
    */
-  const int OUTLINE_THICKNESS_WIDTH = 4;
+  const int OUTLINE_THICKNESS_WIDTH = 3;
   for (const auto &dir : DIRECTIONS)
   {
     Rectangle dest_outline = {dest.x + OUTLINE_THICKNESS_WIDTH * dir.x,
