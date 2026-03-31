@@ -6,10 +6,16 @@
 #include <spritesheet-renderer.h>
 #include <vector>
 
-const int FLOOR_Y            = 300; // how many pixels down floor should span for
-const int PLAYER_SPRITE_SIZE = 80;  // w + h of player hitbox
-const int OBSTACLE_SIZE      = 50;
-const int COIN_SIZE          = 50;
+const int OBSTACLE_SIZE = 50;
+const int COIN_SIZE     = 50;
+
+const int FLOOR_Y = 300; // position of floor
+
+const float GRAVITY         = -0.75;
+const float BASE_GAME_SPEED = 7.5f;
+
+const int SCREEN_WIDTH  = 400;
+const int SCREEN_HEIGHT = 400;
 
 enum GameState : uint8_t
 {
@@ -28,26 +34,58 @@ typedef struct game_object
   // both of the above might turn into variables later on!
 } game_object;
 
-// <input>
-bool blocked = false;
-bool PlayerInput()
+typedef struct player
 {
-  if (!blocked && (GetTouchPointCount() > 0 || IsKeyDown(KEY_SPACE)))
+
+  const int JUMP_HEIGHT = 13;
+  const int SPRITE_SIZE = 80; // how big we want the sprite to be in the window
+
+  int                                   xpos        = 40;
+  int                                   ypos        = FLOOR_Y - SPRITE_SIZE;
+  float                                 dy          = 0;
+  bool                                  is_grounded = true;
+  std::shared_ptr<SPRITESHEET_RENDERER> sprite      = nullptr;
+
+  // these two are completely eyeballed to taste
+
+  Rectangle hitbox = {
+      (float)xpos, (float)ypos, (float)SPRITE_SIZE - 30, (float)SPRITE_SIZE - 20};
+
+  Rectangle draw_rect = {
+      (float)xpos - 12, (float)ypos - 6, (float)SPRITE_SIZE, (float)SPRITE_SIZE};
+
+} player;
+
+typedef struct input_state
+{
+  bool held_down = false;
+} input_state;
+
+input_state inputs;
+
+bool UserInput()
+{
+  bool getting_input = GetTouchPointCount() > 0 || IsKeyDown(KEY_SPACE);
+
+  /* checking if input isn't already held down when getting new input implements
+  no key repeat behavior; this is so that when we do things like press to
+  change game state the transitions aren't skipped due to key repeat */
+
+  if (!inputs.held_down && getting_input)
   {
-    blocked = true;
+    inputs.held_down = true;
     return true;
   }
-
-  return false;
+  else
+  {
+    return false;
+  }
 }
-// </input>
 
 int main(void)
 {
-  const int screenWidth  = 600;
-  const int screenHeight = 400;
 
-  InitWindow(screenWidth, screenHeight, "squirrel");
+  InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "squirrel");
   InitAudioDevice();
 
   SetTargetFPS(60);
@@ -61,31 +99,26 @@ int main(void)
                                         .time_since_epoch()
                                         .count()); // this is seeded with the current time
 
-  float baseGameSpeed = 7.5f;
-  float currGameSpeed = baseGameSpeed;
+  float currGameSpeed = BASE_GAME_SPEED;
 
   GameState gameState = TITLE;
 
   Texture2D floor_texture =
       LoadTexture(std::filesystem::path("../assets/floor.png").c_str());
 
-  // do 2 cycling floors thing
-
-  const float FLOOR_SCALE = static_cast<float>(screenWidth) / floor_texture.width;
+  const float FLOOR_SCALE = static_cast<float>(SCREEN_WIDTH) / floor_texture.width;
   const float FLOOR_WIDTH = floor_texture.width * FLOOR_SCALE;
 
   float floor_a_x = 0;
   float floor_b_x = FLOOR_WIDTH;
 
-  // === PLAYER ===============================================================================
+  // === PLAYER ==========================================================================
 
-  int   playerX    = 40;
-  int   playerY    = FLOOR_Y - PLAYER_SPRITE_SIZE;
-  float playerDy   = 0;
-  float jumpHeight = 13;
-  float gravity    = -0.75;
-  bool  isGrounded = true;
+  player player;
 
+  // sprite setup
+
+  // Load Sprites
   Texture2D spr_niko_run =
       LoadTexture(std::filesystem::path("assets/niko-run.png").c_str());
   Texture2D spr_niko_jump =
@@ -103,6 +136,8 @@ int main(void)
   niko_spritesheet_renderer->setFPS(8);
   niko_spritesheet_renderer->enableOutline(false);
   niko_spritesheet_renderer->setSpritesheet("run");
+
+  player.sprite = niko_spritesheet_renderer;
 
   // === DELTATIME =======================================================================
 
@@ -134,12 +169,6 @@ int main(void)
   int coin_count      = 0;
   int coin_high_score = 0;
 
-  // update player hitbox
-  Rectangle player_hitbox{static_cast<float>(playerX),
-                          static_cast<float>(playerY),
-                          PLAYER_SPRITE_SIZE - 30,
-                          PLAYER_SPRITE_SIZE - 20};
-
   Texture2D coin_sprite =
       LoadTexture(std::filesystem::path("assets/cigs-red.png").c_str());
 
@@ -152,12 +181,12 @@ int main(void)
     case TITLE:
     {
       // restore game speed
-      currGameSpeed = baseGameSpeed;
+      currGameSpeed = 0;
 
       // restore player pos; vel
-      playerDy   = 0;
-      playerY    = FLOOR_Y - player_hitbox.height;
-      isGrounded = true;
+      player.dy          = 0;
+      player.ypos        = FLOOR_Y - player.hitbox.height;
+      player.is_grounded = true;
 
       // clear all coins, enemies
       coins.clear();
@@ -168,44 +197,46 @@ int main(void)
 
       // disable score & spawns until we are playing
 
-      if (PlayerInput())
+      if (UserInput())
       {
         gameState = PLAYING;
 
         // perform a jump
-        isGrounded = false;
-        playerDy   = -jumpHeight;
+        player.is_grounded = false;
+        player.dy          = -player.JUMP_HEIGHT;
 
         PlaySound(jump);
       }
     }
     case PLAYING:
     {
-      if (PlayerInput() && isGrounded)
+      currGameSpeed = BASE_GAME_SPEED;
+
+      if (UserInput() && player.is_grounded)
       {
-        isGrounded = false;
-        playerDy   = -jumpHeight;
+        player.is_grounded = false;
+        player.dy          = -player.JUMP_HEIGHT;
 
         PlaySound(jump);
       }
 
-      playerDy -= gravity; // apply acceleration
-      playerY += playerDy; // apply vel
+      player.dy -= GRAVITY;     // apply acceleration
+      player.ypos += player.dy; // apply vel
 
       // if the player touches the ground again
       // (lowest edge y is below floor)
       // reset player's velocity and put them on the floor
-      if (playerY + player_hitbox.height >= FLOOR_Y)
+      if (player.ypos + player.hitbox.height >= FLOOR_Y)
       {
-        playerDy = 0;
-        playerY  = FLOOR_Y - player_hitbox.height;
+        player.dy   = 0;
+        player.ypos = FLOOR_Y - player.hitbox.height;
 
-        if (!isGrounded)
+        if (!player.is_grounded)
         {
           PlaySound(land);
         }
 
-        isGrounded = true;
+        player.is_grounded = true;
       }
 
       break;
@@ -215,7 +246,7 @@ int main(void)
       // freeze the game until input is received
       currGameSpeed = 0.0f;
 
-      if (PlayerInput())
+      if (UserInput())
       {
         gameState = TITLE;
       }
@@ -224,15 +255,12 @@ int main(void)
     }
     }
 
-    // update player draw rect
-    Rectangle player_draw_rect{static_cast<float>(playerX - 12),
-                               static_cast<float>(playerY - 6),
-                               PLAYER_SPRITE_SIZE,
-                               PLAYER_SPRITE_SIZE};
+    // since pos changed, update player draw rect and hitbox positions
+    player.draw_rect.x = player.xpos - 12;
+    player.draw_rect.y = player.ypos - 6;
 
-    // update player hitbox
-    player_hitbox.x = playerX;
-    player_hitbox.y = playerY;
+    player.hitbox.x = player.xpos;
+    player.hitbox.y = player.ypos;
 
     // update deltatime
     auto currentTime = std::chrono::high_resolution_clock::now();
@@ -267,14 +295,14 @@ int main(void)
           if (obstacle_will_fly)
           {
             obstacles.push_back(
-                game_object{screenWidth + OBSTACLE_SIZE,
-                            FLOOR_Y - OBSTACLE_SIZE - PLAYER_SPRITE_SIZE * 2});
+                game_object{SCREEN_WIDTH + OBSTACLE_SIZE,
+                            FLOOR_Y - OBSTACLE_SIZE - player.SPRITE_SIZE * 2});
           }
           else
           {
             // obstacle is at ground
             obstacles.push_back(
-                game_object{screenWidth + OBSTACLE_SIZE, FLOOR_Y - OBSTACLE_SIZE});
+                game_object{SCREEN_WIDTH + OBSTACLE_SIZE, FLOOR_Y - OBSTACLE_SIZE});
           }
         }
 
@@ -290,7 +318,7 @@ int main(void)
                                   COIN_SIZE,
                                   COIN_SIZE};
 
-        if (CheckCollisionRecs(player_hitbox, obstacle_hitbox) && gameState == PLAYING)
+        if (CheckCollisionRecs(player.hitbox, obstacle_hitbox) && gameState == PLAYING)
         {
           gameState = GAME_OVER;
 
@@ -299,7 +327,7 @@ int main(void)
 
           // freeze game
           currGameSpeed = 0;
-          playerDy      = 0;
+          player.dy     = 0;
 
           // set coin high score
           coin_high_score = coin_count;
@@ -325,9 +353,10 @@ int main(void)
         if (will_spawn_coin)
         {
           coins.push_back(game_object{
-              screenWidth + COIN_SIZE,
+              SCREEN_WIDTH + COIN_SIZE,
               FLOOR_Y - COIN_SIZE -
-                  PLAYER_SPRITE_SIZE}); // this SPECIFIC setup will put coins right between flying enemies and player
+                  player
+                      .SPRITE_SIZE}); // this SPECIFIC setup will put coins right between flying enemies and player
         }
 
         coin_spawn_timer = 0;
@@ -346,7 +375,7 @@ int main(void)
                               COIN_SIZE,
                               COIN_SIZE};
 
-        if (CheckCollisionRecs(player_hitbox, coin_hitbox))
+        if (CheckCollisionRecs(player.hitbox, coin_hitbox))
         {
           iter = coins.erase(iter); // iterator updated HERE
           PlaySound(pickupCoin);
@@ -365,20 +394,20 @@ int main(void)
 
     if (!(GetTouchPointCount() > 0 || IsKeyDown(KEY_SPACE)))
     {
-      blocked = false;
+      inputs.held_down = false;
     }
 
     // WARNING: BAD INPUT LOGIC
 
-    if (floor_a_x < -screenWidth)
+    if (floor_a_x < (float)-SCREEN_WIDTH)
     {
-      floor_a_x = screenWidth - (abs(floor_a_x) - screenWidth);
+      floor_a_x = (float)SCREEN_WIDTH - (abs(floor_a_x) - (float)SCREEN_WIDTH);
     }
 
-    if (floor_b_x < -screenWidth)
+    if (floor_b_x < (float)-SCREEN_WIDTH)
     {
 
-      floor_b_x = screenWidth - (abs(floor_b_x) - screenWidth);
+      floor_b_x = (float)SCREEN_WIDTH - (abs(floor_b_x) - (float)SCREEN_WIDTH);
     }
 
     floor_a_x -= currGameSpeed;
@@ -389,7 +418,7 @@ int main(void)
     BeginDrawing();
 
     // draw floors
-    // DrawRectangle(0, FLOOR_Y, screenWidth, screenHeight - FLOOR_Y, GREEN);
+    // DrawRectangle(0, FLOOR_Y, SCREEN_WIDTH, SCREEN_HEIGHT - FLOOR_Y, GREEN);
 
     DrawTextureEx(floor_texture,
                   {static_cast<float>(floor_a_x), static_cast<float>(FLOOR_Y)},
@@ -426,35 +455,36 @@ int main(void)
                     WHITE);
     }
 
-    // draw player
-    // DrawRectangle(playerX, playerY, PLAYER_SPRITE_SIZE, PLAYER_SPRITE_SIZE, ORANGE);
-    /*
-    DrawRectangle(player_hitbox.x,
-                  player_hitbox.y,
-                  player_hitbox.width,
-                  player_hitbox.height,
-                  PURPLE);
-    */
-    niko_spritesheet_renderer->renderToDest(player_draw_rect);
+    // draw debug stuff
 
-    // draw gui
+    /*
     std::string coin_gui =
         coin_high_score > 0
             ? std::format("SCORE {} ( HIGH SCORE {} )", coin_count, coin_high_score)
             : std::format("SCORE {}", coin_count);
 
     std::string debug =
-        std::format("STATE: {} BLOCKED: {} PRESSING: {} M: {}, {}",
+        std::format("STATE: {}\nBLOCKED: {}\nPRESSING: {}\nM: {}, {}\nGRND: {} DY: {}",
                     static_cast<int>(gameState),
-                    static_cast<int>(blocked),
+                    static_cast<int>(inputs.held_down),
                     static_cast<int>(GetTouchPointCount() > 0 || IsKeyDown(KEY_SPACE)),
                     GetMouseX(),
-                    GetMouseY());
+                    GetMouseY(),
+                    player.is_grounded,
+                    player.dy);
 
-    // DrawText(coin_gui.c_str(), 0, 0, 24, WHITE);
-    // DrawText(debug.c_str(), 0, 48, 24, WHITE);
+    DrawText(coin_gui.c_str(), 0, 0, 24, WHITE);
+    DrawText(debug.c_str(), 0, 48, 24, WHITE);
 
-    ClearBackground(ORANGE);
+    DrawRectangleRec(player.draw_rect, WHITE);
+    DrawRectangleRec(player.hitbox, RED);
+    */
+
+    // draw player
+
+    niko_spritesheet_renderer->renderToDest(player.draw_rect);
+
+    ClearBackground(BLACK);
 
     EndDrawing();
   }
