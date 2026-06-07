@@ -14,6 +14,7 @@ const int screenHeight = 300;
 int main()
 {
   InitWindow(screenWidth, screenHeight, "platformer");
+  SetTargetFPS(30);
 
 #ifdef DEBUG
   Texture2D texCharIdle =
@@ -22,9 +23,11 @@ int main()
       LoadTexture(std::filesystem::path("../assets/charWalk.png").c_str());
 
   std::unordered_map<std::string, SpritesheetImage const *> charSprites = {
-      {"idle", new SpritesheetImage(texCharIdle, "idle", 10)}};
+      {"idle", new SpritesheetImage(texCharIdle, "idle", 1, 10)},
+      {"walk", new SpritesheetImage(texCharWalk, "walk", 6, 4)}};
 
-  SpritesheetRenderer characterSprite(charSprites, 8, "idle");
+  SpritesheetRenderer characterSprite(charSprites, 16, "idle");
+  characterSprite.switchTo("walk");
 #endif
 
   auto   previous = std::chrono::high_resolution_clock::now();

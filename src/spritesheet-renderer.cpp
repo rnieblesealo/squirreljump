@@ -8,12 +8,15 @@
 
 SpritesheetImage::SpritesheetImage(Texture2D   &image,
                                    std::string  key,
-                                   unsigned int frameCount)
+                                   unsigned int rows,
+                                   unsigned int cols)
     : _image(image)
     , _key(key)
-    , _frame_count(frameCount)
-    , _fw(image.width / frameCount)
-    , _fh(image.height)
+    , _frame_count(rows * cols)
+    , _r(rows)
+    , _c(cols)
+    , _fw(image.width / cols)
+    , _fh(image.height / rows)
 {
 }
 
@@ -47,22 +50,29 @@ void SpritesheetRenderer::update(double deltaTime)
       ++_frame;
     _frame_timer = 0;
   }
-
-#ifdef DEBUG
-  std::cout << _frame_timer << " " << _frame_duration << " " << deltaTime << "\n";
-#endif
 }
 
 void SpritesheetRenderer::render(float x, float y)
 {
-  Rectangle src = {static_cast<float>(_curr->_fw * _frame),
-                   0,
+  int fiw = _frame % _curr->_c;
+  int fih = _frame / _curr->_c;
+
+  Rectangle src = {static_cast<float>(_curr->_fw * fiw),
+                   static_cast<float>(_curr->_fh * fih),
                    static_cast<float>(_curr->_fw),
                    static_cast<float>(_curr->_fh)};
 
-  Rectangle dest = {x, y, static_cast<float>(_curr->_fw), static_cast<float>(_curr->_fh)};
+#ifdef DEBUG
+  std::cout << fiw << ", " << fih << ", f = " << _frame << "\n";
+#endif
 
-  DrawTexturePro(_curr->_image, src, dest, Vector2{0, 0}, 0, RAYWHITE);
+  unsigned int scale = 2;
+  Rectangle    dest  = {x,
+                        y,
+                        static_cast<float>(_curr->_fw * scale),
+                        static_cast<float>(_curr->_fh * scale)};
+
+  DrawTexturePro(_curr->_image, src, dest, Vector2{0, 0}, scale, RAYWHITE);
 }
 
 void SpritesheetRenderer::switchTo(std::string key)
