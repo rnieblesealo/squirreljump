@@ -2,10 +2,6 @@
 #include <cassert>
 #include <raylib.h>
 
-#ifdef DEBUG
-#include <iostream>
-#endif
-
 SpritesheetImage::SpritesheetImage(Texture2D   &image,
                                    std::string  key,
                                    unsigned int rows,
@@ -38,7 +34,7 @@ SpritesheetRenderer::~SpritesheetRenderer()
     delete value;
 };
 
-void SpritesheetRenderer::update(double deltaTime)
+void SpritesheetRenderer::flip(double deltaTime)
 {
   _frame_timer += deltaTime;
 
@@ -61,10 +57,6 @@ void SpritesheetRenderer::render(float x, float y)
                    static_cast<float>(_curr->_fh * fih),
                    static_cast<float>(_curr->_fw),
                    static_cast<float>(_curr->_fh)};
-
-#ifdef DEBUG
-  std::cout << fiw << ", " << fih << ", f = " << _frame << "\n";
-#endif
 
   unsigned int scale = 2;
   Rectangle    dest  = {x,

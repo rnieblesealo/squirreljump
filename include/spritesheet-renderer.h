@@ -1,6 +1,4 @@
-#ifndef SPRITESHEET_RENDERER_H
-#define SPRITESHEET_RENDERER_H
-#endif
+#pragma once
 
 #include <raylib.h>
 #include <string>
@@ -34,7 +32,7 @@ public:
   );
   ~SpritesheetRenderer();
 
-  void update(double deltaTime);
+  void flip(double deltaTime);
   void render(float x, float y);
   void switchTo(std::string key);
 

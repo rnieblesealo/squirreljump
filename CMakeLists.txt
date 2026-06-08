@@ -15,6 +15,9 @@ find_package(raylib REQUIRED)
 
 add_executable(${PROJECT_NAME} 
   src/main.cpp
+  src/entity.cpp
+  src/player.cpp
+  src/input-controller.cpp
   src/spritesheet-renderer.cpp
 )
 

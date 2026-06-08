@@ -1,12 +1,10 @@
-#ifdef DEBUG
+#include "player.h"
 #include "spritesheet-renderer.h"
-#include <filesystem>
-#endif
-
 #include <chrono>
+#include <filesystem>
 #include <raylib.h>
 
-const double MS_PER_UPDATE = 50.0; // the game's effective tickrate
+const double MS_PER_UPDATE = 10; // the game's effective tickrate
 
 const int screenWidth  = 400;
 const int screenHeight = 300;
@@ -14,21 +12,20 @@ const int screenHeight = 300;
 int main()
 {
   InitWindow(screenWidth, screenHeight, "platformer");
-  SetTargetFPS(30);
+  SetTargetFPS(60);
 
-#ifdef DEBUG
   Texture2D texCharIdle =
-      LoadTexture(std::filesystem::path("../assets/charIdle.png").c_str());
-  Texture2D texCharWalk =
-      LoadTexture(std::filesystem::path("../assets/charWalk.png").c_str());
+      LoadTexture(std::filesystem::path("../assets/player/PlayerIdle.png").c_str());
+  Texture2D texCharRun =
+      LoadTexture(std::filesystem::path("../assets/player/PlayerRun.png").c_str());
 
   std::unordered_map<std::string, SpritesheetImage const *> charSprites = {
-      {"idle", new SpritesheetImage(texCharIdle, "idle", 1, 10)},
-      {"walk", new SpritesheetImage(texCharWalk, "walk", 6, 4)}};
+      {"idle", new SpritesheetImage(texCharIdle, "idle", 1, 4)},
+      {"run", new SpritesheetImage(texCharRun, "run", 1, 6)}};
 
-  SpritesheetRenderer characterSprite(charSprites, 16, "idle");
-  characterSprite.switchTo("walk");
-#endif
+  SpritesheetRenderer characterSprite(charSprites, 12, "idle");
+
+  Player player(characterSprite);
 
   auto   previous = std::chrono::high_resolution_clock::now();
   double lag      = 0;
@@ -42,23 +39,22 @@ int main()
     previous       = current;
     lag += elapsed;
 
-    // input code...
+    player.HandleInput();
 
     while (lag >= MS_PER_UPDATE)
     {
-      // game clock dependent code...
+      player.update();
 
       lag -= MS_PER_UPDATE;
     }
 
     // game clock independent code ( rendering )...
 
-    characterSprite.update(elapsed);
-
     BeginDrawing();
     ClearBackground(LIME);
 
-    characterSprite.render(0, 0);
+    player.render(lag / MS_PER_UPDATE, elapsed);
+
     EndDrawing();
   }
 
@@ -66,5 +62,5 @@ int main()
 }
 
 /* References:
- * Game Programming Patterns, p. 150 (State) -- Main loop style
+ * Game Programming Patterns, p. 150
  */
