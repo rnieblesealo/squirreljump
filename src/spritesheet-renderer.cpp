@@ -2,37 +2,40 @@
 #include <cassert>
 #include <raylib.h>
 
-SpritesheetImage::SpritesheetImage(Texture2D   &image,
-                                   std::string  key,
-                                   unsigned int rows,
-                                   unsigned int cols)
+SpritesheetImage::SpritesheetImage(Texture2D &image, unsigned int rows, unsigned int cols)
     : _image(image)
-    , _key(key)
     , _frame_count(rows * cols)
-    , _r(rows)
-    , _c(cols)
-    , _fw(image.width / cols)
-    , _fh(image.height / rows)
+    , _rows(rows)
+    , _cols(cols)
+    , _frame_width(image.width / cols)
+    , _frame_height(image.height / rows)
+{
+}
+
+Animation::Animation(SpritesheetImage const                     &spritesheet,
+                     std::map<unsigned int, KeyframeData> const *keyFrames)
+    : _spritesheet(spritesheet)
+    , _keyframes(keyFrames)
 {
 }
 
 SpritesheetRenderer::SpritesheetRenderer(
-    std::unordered_map<std::string, SpritesheetImage const *> images,
-    unsigned int                                              fps,
-    std::string                                               defaultKey)
-    : _images(images)
-    , _fps(fps)
-    , _frame_duration(1000.0 / _fps)
+    std::unordered_map<std::string, Animation const *> const &animations,
+    std::string                                               startAnimation,
+    std::unordered_map<std::string, Sound const &> const     *soundEffects)
+    : _animations(animations)
+    , _fps(12)
+    , _frame_duration(1000.0 / _fps) // in ms
+    , _frame(0)
+    , _frame_timer(0)
+    , _curr(nullptr)
+    , _sfx(soundEffects)
 {
-  assert(_images.contains(defaultKey));
-  switchTo(defaultKey);
+  assert(_animations.contains(startAnimation));
+  switchTo(startAnimation);
 }
 
-SpritesheetRenderer::~SpritesheetRenderer()
-{
-  for (const auto &[key, value] : _images)
-    delete value;
-};
+SpritesheetRenderer::~SpritesheetRenderer() {};
 
 void SpritesheetRenderer::flip(double deltaTime)
 {
@@ -40,38 +43,59 @@ void SpritesheetRenderer::flip(double deltaTime)
 
   if (_frame_timer >= _frame_duration)
   {
-    if (_frame + 1 >= _curr->_frame_count)
+    if (_frame + 1 >= _curr->_spritesheet._frame_count)
       _frame = 0;
     else
       ++_frame;
     _frame_timer = 0;
+
+    if (!_curr->_keyframes)
+      return;
+
+    if (_curr->_keyframes->contains(_frame))
+    {
+      KeyframeData k = _curr->_keyframes->at(_frame);
+      for (auto const &instr : k._instructions)
+      {
+        switch (instr.first)
+        {
+        case PLAY_SOUND:
+        {
+#ifdef DEBUG
+          PlaySound(_sfx->at(instr.second)); // WARNING: WILL BREAK IF NO SOUND REGISTERED
+#endif
+          break;
+        }
+        }
+      }
+    }
   }
 }
 
 void SpritesheetRenderer::render(float x, float y)
 {
-  int fiw = _frame % _curr->_c;
-  int fih = _frame / _curr->_c;
+  int fiw = _frame % _curr->_spritesheet._cols;
+  int fih = _frame / _curr->_spritesheet._cols;
 
-  Rectangle src = {static_cast<float>(_curr->_fw * fiw),
-                   static_cast<float>(_curr->_fh * fih),
-                   static_cast<float>(_curr->_fw),
-                   static_cast<float>(_curr->_fh)};
+  Rectangle src = {static_cast<float>(_curr->_spritesheet._frame_width * fiw),
+                   static_cast<float>(_curr->_spritesheet._frame_height * fih),
+                   static_cast<float>(_curr->_spritesheet._frame_width),
+                   static_cast<float>(_curr->_spritesheet._frame_height)};
 
   unsigned int scale = 2;
   Rectangle    dest  = {x,
                         y,
-                        static_cast<float>(_curr->_fw * scale),
-                        static_cast<float>(_curr->_fh * scale)};
+                        static_cast<float>(_curr->_spritesheet._frame_width * scale),
+                        static_cast<float>(_curr->_spritesheet._frame_height * scale)};
 
-  DrawTexturePro(_curr->_image, src, dest, Vector2{0, 0}, scale, RAYWHITE);
+  DrawTexturePro(_curr->_spritesheet._image, src, dest, Vector2{0, 0}, scale, RAYWHITE);
 }
 
 void SpritesheetRenderer::switchTo(std::string key)
 {
-  if (!_images.contains(key))
+  if (!_animations.contains(key))
     return;
-  _curr = _images.at(key);
+  _curr = _animations.at(key);
 
   _frame       = 0;
   _frame_timer = 0;
