@@ -1,0 +1,25 @@
+{
+  "player": {
+    "soundEffects": {
+      "step": "/assets/footstep.wav",
+      "shoot": "/assets/shoot.wav"
+    },
+    "animations": {
+      "run": {
+        "spritesheet": "/assets/charRun.png",
+        "spritesheet_rows": 1,
+        "spritesheet_cols": 4,
+        "keyframe_events": {
+          "2": [
+            "PLAY_SOUND",
+            "step"
+          ],
+          "5": [
+            "PLAY_SOUND",
+            "step"
+          ]
+        }
+      }
+    }
+  }
+}

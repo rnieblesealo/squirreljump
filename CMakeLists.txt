@@ -15,10 +15,12 @@ find_package(raylib REQUIRED)
 
 add_executable(${PROJECT_NAME} 
   src/main.cpp
-  src/entity.cpp
-  src/player.cpp
+  src/audio-locator.cpp
+  src/audio.cpp
   src/input-controller.cpp
   src/spritesheet-renderer.cpp
+  src/entity.cpp
+  src/player.cpp
 )
 
 if(APPLE)
