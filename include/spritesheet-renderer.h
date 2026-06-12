@@ -43,8 +43,7 @@ class SpritesheetRenderer
 public:
   SpritesheetRenderer(
       std::unordered_map<std::string, Animation const *> const &animations,
-      std::string                                               startAnimation,
-      std::unordered_map<std::string, Sound const &> const     *soundEffects = nullptr);
+      std::string                                               startAnimation);
   ~SpritesheetRenderer();
 
   void flip(double deltaTime);
@@ -52,9 +51,9 @@ public:
   void switchTo(std::string key);
 
 private:
-  Animation const                                      *_curr;
-  std::unordered_map<std::string, Animation const *>    _animations;
-  std::unordered_map<std::string, Sound const &> const *_sfx;
+  Animation const                                   *_curr;
+  std::unordered_map<std::string, Animation const *> _animations;
+  std::vector<std::string>                           _sfx;
 
   unsigned int _fps;
   double       _frame_duration;

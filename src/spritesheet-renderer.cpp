@@ -1,4 +1,5 @@
 #include "spritesheet-renderer.h"
+#include "audio-locator.h"
 #include <cassert>
 #include <raylib.h>
 
@@ -21,15 +22,13 @@ Animation::Animation(SpritesheetImage const                     &spritesheet,
 
 SpritesheetRenderer::SpritesheetRenderer(
     std::unordered_map<std::string, Animation const *> const &animations,
-    std::string                                               startAnimation,
-    std::unordered_map<std::string, Sound const &> const     *soundEffects)
+    std::string                                               startAnimation)
     : _animations(animations)
     , _fps(12)
     , _frame_duration(1000.0 / _fps) // in ms
     , _frame(0)
     , _frame_timer(0)
     , _curr(nullptr)
-    , _sfx(soundEffects)
 {
   assert(_animations.contains(startAnimation));
   switchTo(startAnimation);
@@ -62,7 +61,7 @@ void SpritesheetRenderer::flip(double deltaTime)
         case PLAY_SOUND:
         {
 #ifdef DEBUG
-          PlaySound(_sfx->at(instr.second)); // WARNING: WILL BREAK IF NO SOUND REGISTERED
+          AudioLocator::getAudio()->playSound(instr.second);
 #endif
           break;
         }

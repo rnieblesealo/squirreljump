@@ -1,3 +1,5 @@
+#include "audio-locator.h"
+#include "audio.h"
 #include "player.h"
 #include "spritesheet-renderer.h"
 #include <chrono>
@@ -16,11 +18,15 @@ int main()
   SetTargetFPS(60);
 
 #ifdef DEBUG
+  Audio audioEngine;
+  AudioLocator::provide(&audioEngine);
+#endif
+
+#ifdef DEBUG
   // sound
 
-  Sound footstep = LoadSound("../assets/footstep.wav");
-
-  std::unordered_map<std::string, Sound const &> charSfx = {{"footstep", footstep}};
+  AudioLocator::getAudio()->loadSound("footstep",
+                                      std::filesystem::path("../assets/footstep.wav"));
 
   // animation
 
@@ -48,7 +54,7 @@ int main()
   std::unordered_map<std::string, Animation const *> charAnims = {{"idle", charIdle},
                                                                   {"run", charRun}};
 
-  SpritesheetRenderer charAnimator(charAnims, "idle", &charSfx);
+  SpritesheetRenderer charAnimator(charAnims, "idle");
 
   // player
 
