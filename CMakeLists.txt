@@ -7,20 +7,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # if debug build, set the DEBUG preprocessor flag
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_definitions(DEBUG)
 endif()
 
 find_package(raylib REQUIRED)
 
-add_executable(${PROJECT_NAME} 
+add_executable(${PROJECT_NAME}
   src/main.cpp
-  src/audio-locator.cpp
-  src/audio.cpp
   src/input-controller.cpp
   src/spritesheet-renderer.cpp
   src/entity.cpp
   src/player.cpp
+  src/audio/audio-locator.cpp
+  src/audio/audio.cpp
+  src/audio/null-audio.cpp
 )
 
 if(APPLE)
@@ -36,7 +37,7 @@ else()
   target_link_libraries(${PROJECT_NAME} raylib)
 endif()
 
-target_include_directories(${PROJECT_NAME} PRIVATE 
+target_include_directories(${PROJECT_NAME} PRIVATE
   include/
 )
 

@@ -1,5 +1,5 @@
-#include "audio-locator.h"
-#include "audio.h"
+#include "audio/audio-locator.h"
+#include "audio/audio.h"
 #include "player.h"
 #include "spritesheet-renderer.h"
 #include <chrono>
@@ -18,7 +18,10 @@ int main()
   SetTargetFPS(60);
 
 #ifdef DEBUG
+  AudioLocator::initialize();
+
   Audio audioEngine;
+
   AudioLocator::provide(&audioEngine);
 #endif
 

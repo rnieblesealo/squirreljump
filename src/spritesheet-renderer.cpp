@@ -1,5 +1,5 @@
 #include "spritesheet-renderer.h"
-#include "audio-locator.h"
+#include "audio/audio-locator.h"
 #include <cassert>
 #include <raylib.h>
 

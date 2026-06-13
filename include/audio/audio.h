@@ -1,15 +1,16 @@
 #pragma once
 
+#include "audio/audio-intf.h"
 #include <filesystem>
 #include <raylib.h>
 #include <string>
 #include <unordered_map>
 
-class Audio
+class Audio : IAudio
 {
 public:
-  void loadSound(std::string key, std::filesystem::path path);
-  void playSound(std::string key);
+  void loadSound(std::string key, std::filesystem::path path) override;
+  void playSound(std::string key) override;
 
 private:
   std::unordered_map<std::string, Sound>
